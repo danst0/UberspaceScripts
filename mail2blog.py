@@ -12,16 +12,19 @@ from subprocess import call
 now = datetime.datetime.now()
 
 
-tmp_dir = '/home/ddumke/.tmp/'
-blog_dir = '/var/www/virtual/ddumke/html/kirbycms/content/01-schnipsel/'
+tmp_dir = '/home/pegelein/.tmp/'
+blog_dir = '/var/www/virtual/pegelein/html/kirbycms/content/01-schnipsel/'
+manifest = '/var/www/virtual/pegelein/html/kirbycms/offline.manifest'
 
 valid_senders = ['daniel@dumke.me', 'daniel.dumke@eon.com', 'may@dumke.me']
 
-valid_recievers = [('delivered-to', 'ddumke-tumblr@dumke.me'), ('to', 'tumblr@dumke.me') ]
+valid_recievers = [('delivered-to', 'pegelein-tumblr@pegeleins.me'), ('to', 'tumblr@pegeleins.me'), ('to', 'tumblr@pegelein.serpens.uberspace.de')]
+
+my_mail_directory = '/home/pegelein/Maildir'
 
 photo_extensions = ['.jpg', '.jpeg', '.png']
 
-video_extensions = ['.mov']
+video_extensions = ['.mov', '.mp4']
 
 month = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dez']
 
@@ -42,7 +45,7 @@ def decode_message(message):
 
         ctype = part.get_content_type()
 #         print ctype
-        if ctype == "text/plain":
+        if ctype in ["text/plain"]:
             if body is None:
                 body = ''
             encoding = part.get_content_charset()
@@ -50,14 +53,16 @@ def decode_message(message):
                 encoding = 'ascii'
             body += unicode(part.get_payload(decode=True),
                 encoding,'replace').encode('utf8','replace')
-        elif ctype == "text/html":
+#             print body
+        elif ctype in ["text/html"]:
             if html is None:
                 html = ''
             encoding = part.get_content_charset()
             if encoding == None:
                 encoding = 'ascii'
-            html += unicode(part.get_payload(decode=True),
-                encoding,'replace').encode('utf8','replace')
+
+            html += unicode(part.get_payload(decode=True), encoding,'replace').encode('utf8','replace')
+#             print html
         elif ctype in ['image/jpeg', 'image/jpg', 'image/png']:
             filename = part.get_filename()
             if not check_extenstions([filename], photo_extensions):
@@ -65,13 +70,20 @@ def decode_message(message):
                     filename = filename + '.jpg'
                 elif ctype in ['image/png']:
                     filename = filename + '.png'
+            if file_exists(tmp_dir + filename):
+                file_count = 1
+                while file_exists(tmp_dir + str(file_count) + filename):
+                    file_count += 1
+                filename = str(file_count) + filename
+            else:
+                filename = '0' + filename
             open(tmp_dir + filename, 'wb').write(part.get_payload(decode=True))
             attachments.append(filename)
-        elif ctype in ['video/quicktime', 'application/octet-stream']:
+        elif ctype in ['video/quicktime', 'application/octet-stream', 'video/mp4']:
             open(tmp_dir + part.get_filename(), 'wb').write(part.get_payload(decode=True))
             attachments.append(part.get_filename())
-        elif ctype in ['multipart/mixed']:
-            pass
+        elif ctype in ['multipart/mixed', "multipart/alternative"]:
+            continue
         else:
             print 'Unrecognized content type:', ctype
     strip_enter(body)
@@ -83,7 +95,7 @@ def decode_message(message):
     elif body == None and html == None:
         return '', attachments
     elif body != None and html != None:
-        return '', attachments
+        return body, attachments
 
 def replace_directory(dir):
     dir = dir.lower()
@@ -112,6 +124,15 @@ def check_extenstions(attachments, valid_ext):
                 break
     return found
 
+
+def file_exists(file):
+    try:
+        with open(file):
+            exists = True
+    except:
+        exists = False                
+    return exists
+
 def extract_tags(title):
     tags = []
     pos_hash = title.find('#')
@@ -125,6 +146,7 @@ def extract_tags(title):
         title = title[:pos_hash] + title[pos_space+1:]
         pos_hash = title.find('#')
     return title.strip(), tags    
+
 def make_post(title, text, attachments):
     success = False
     now = datetime.datetime.now()
@@ -148,12 +170,11 @@ def make_post(title, text, attachments):
 #     print 'tag_line', tag_line
     new_dir = new_dir + str(last_blog + 1).zfill(2) + '-' + replace_directory(title) + '/'
     
-
     if attachments != [] and check_extenstions(attachments, photo_extensions):
         print 'Creating', new_dir
         os.makedirs(new_dir)
         for file in attachments:
-            call(['/home/ddumke/.toast/armed/bin/jhead', '-autorot', tmp_dir + file])
+            call(['/home/pegelein/.toast/armed/bin/jhead', '-autorot', tmp_dir + file])                
             shutil.move(tmp_dir + file, new_dir)
         f = open(new_dir + '/article.photo.txt', 'w')
         f.write('Title: ' + title + '\n')
@@ -240,13 +261,13 @@ def check_to_mail(message):
     return valid
 
 if __name__ == '__main__':
-    mb = mailbox.Maildir('~/users/daniel', email.message_from_file)
+    mb = mailbox.Maildir(my_mail_directory, email.message_from_file)
     if os.path.exists(tmp_dir):
         shutil.rmtree(tmp_dir)
     os.makedirs(tmp_dir)
     to_remove = []
     for key, message in mb.iteritems():
-    #     print message.keys()
+#         print message.keys()
         from_line = message['from']
         to_line = message['to']
         subject = email.header.decode_header(message['subject'])
@@ -254,7 +275,7 @@ if __name__ == '__main__':
         encoding = subject[0][1]
         if subject[0][1] == None:
             encoding = 'ascii'
-        print key        
+        print key
         print "::", subject[0][0],"::"
         title = unicode(subject[0][0], encoding,'replace').encode('utf8','replace')
 #         print message.keys()
@@ -266,5 +287,33 @@ if __name__ == '__main__':
             print 'Attachments:', attachments
             if make_post(title, text, attachments):
                 to_remove.append(key)
+
     for key in to_remove:
         mb.remove(key)
+    if len(to_remove) > 0:
+        with open(manifest, 'r') as f:
+            manifest_content = f.readlines()
+        comment_line = -1
+        for no, line in enumerate(manifest_content):
+            if line[0:9] == '# Version':
+                comment_line = no
+                break
+#         print comment_line
+        if comment_line != -1:
+            manifest_version = manifest_content[comment_line][10:11]
+#             print manifest_version
+            try:
+                manifest_version = int(manifest_version) + 1
+            except:
+                manifest_version = 0
+        else:
+            manifest_version = 0
+            comment_line = 0
+#         print manifest_version
+        if manifest_version > 9:
+            manifest_version = 0
+        manifest_content[comment_line] = '# Version ' + str(manifest_version) + '\n'
+        print manifest_content[comment_line], 
+        with open(manifest, 'w') as f:
+            f.write(''.join(manifest_content))
+>>>>>>> 6568ca9eb947372557669c28a29b67efc2e39d33
