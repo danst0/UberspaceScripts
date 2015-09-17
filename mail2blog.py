@@ -22,7 +22,7 @@ valid_recievers = [('delivered-to', 'pegelein-tumblr@pegeleins.me'), ('to', 'tum
 
 my_mail_directory = '/home/pegelein/Maildir'
 
-photo_extensions = ['.jpg', '.jpeg', '.png']
+photo_extensions = ['.jpg', '.jpeg', '.png', '.gif']
 
 video_extensions = ['.mov', '.mp4']
 
@@ -63,13 +63,15 @@ def decode_message(message):
 
             html += unicode(part.get_payload(decode=True), encoding,'replace').encode('utf8','replace')
 #             print html
-        elif ctype in ['image/jpeg', 'image/jpg', 'image/png']:
+        elif ctype in ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']:
             filename = part.get_filename()
             if not check_extenstions([filename], photo_extensions):
                 if ctype in ['image/jpeg', 'image/jpg']:
                     filename = filename + '.jpg'
                 elif ctype in ['image/png']:
                     filename = filename + '.png'
+                elif ctype in ['image/gif']:
+                    filename = filename + '.gif'
             if file_exists(tmp_dir + filename):
                 file_count = 1
                 while file_exists(tmp_dir + str(file_count) + filename):
@@ -316,4 +318,4 @@ if __name__ == '__main__':
         print manifest_content[comment_line], 
         with open(manifest, 'w') as f:
             f.write(''.join(manifest_content))
->>>>>>> 6568ca9eb947372557669c28a29b67efc2e39d33
+
