@@ -171,8 +171,12 @@ def make_post(title, text, attachments):
         print 'Creating', new_dir
         os.makedirs(new_dir)
         for file in attachments:
-            call(['/home/pegelein/.toast/armed/bin/jhead', '-autorot', tmp_dir + file])                
-            shutil.move(tmp_dir + file, new_dir)
+            call(['/home/pegelein/.toast/armed/bin/jhead', '-autorot', tmp_dir + file]) 
+            try:
+                shutil.move(tmp_dir + file, new_dir)
+            except:
+                print('Could not move', tmp_dir + file, 'to', new_dir)
+
         f = open(new_dir + '/article.photo.txt', 'w')
         f.write('Title: ' + title + '\n')
         f.write('----\n')
